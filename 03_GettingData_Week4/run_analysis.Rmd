@@ -1,0 +1,175 @@
+---
+title: "Run_Analysis"
+author: "Kelly Zhao"
+date: "2025-01-22"
+output: html_document
+---
+
+## R Markdown
+
+This is an R Markdown document for Coursera.org Getting and Cleaning Data Course Project. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document.
+
+# Introduction
+
+```{r}
+# Below is what this script does
+# 1. Merges the training and the test sets to create one data set.
+# 2. Extracts only the measurements on the mean and standard deviation for each measurement.
+# 3. Uses descriptive activity names to name the activities in the data set
+# 4. Appropriately labels the data set with descriptive variable names.
+# 5. From the data set in step 4, creates a second, independent tidy data set with the average of each variable for each activity and each subject.
+
+```
+
+# Install and Load R Packages
+
+```{r}
+if (!require("pacman")) {
+   install.packages("pacman") }
+
+library(pacman)
+
+# display all available packages included in pacman
+pacman::p_library()
+
+# load relevant packages for this project
+pacman::p_load(data.table, reshape2, gsubfn, dplyr)
+```
+
+# Set Working Directory
+
+```{r}
+setdir<- setwd("C:\\Users\\kelly.zhao\\Downloads")
+
+### create a new folder for the course project
+wd<- if (!file.exists("course project")) {
+  dir.create(paste(setdir, "\\course project", sep=""))
+}
+
+setwd(paste(setdir, "\\course project", sep=""))
+path<- getwd()
+```
+
+# 1. Download Data
+
+```{r}
+url <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
+download.file(url, destfile = "data.zip", method="curl")
+unzip(zipfile = "data.zip")
+list.files(path)
+list.files(paste(path,"\\UCI HAR Dataset", sep=""))
+```
+
+# 2. Create Data Tables
+
+```{r}
+### Read features labels
+features <- read.table("./UCI HAR Dataset/features.txt")
+dim(features) ##  (561, 2)
+
+
+
+### Read activity labels 
+activities <- read.table("./UCI HAR Dataset/activity_labels.txt")
+dim(activities) ##  (6, 2)
+
+
+
+### Read train datasets
+train_label <- read.table("./UCI HAR Dataset/train/y_train.txt")
+train_subject <- read.table("./UCI HAR Dataset/train/subject_train.txt")
+train_data <- read.table("./UCI HAR Dataset/train/X_train.txt")
+
+dim(train_label)  ##  (7352, 1)
+dim(train_subject)  ## (7352, 1)
+dim(train_data) ##  (7352, 561)
+
+
+### Read test datasets
+test_data <- read.table("./UCI HAR Dataset/test/X_test.txt")
+test_label <- read.table("./UCI HAR Dataset/test/y_test.txt")
+test_subject <- read.table("./UCI HAR Dataset/test/subject_test.txt")
+
+dim(test_label)  ##  (2947, 1)
+dim(test_subject)  ## (2947, 1)
+dim(test_data) ##  (2947, 561)
+
+
+
+### Assign variable names
+colnames(features)< c("featureID", "featureType")
+
+colnames(activities)<- c("activityID", "activityType")
+
+colnames(train_data)<- features[,2]
+colnames(train_label)<- "activityID"
+colnames(train_subject)<- "subjectID"
+
+colnames(test_data)<- features[,2]
+colnames(test_label)<- "activityID"
+colnames(test_subject)<- "subjectID"
+```
+
+# 3. Merges the training and the test sets to create one data set.
+```{r}
+alltrain <- cbind(train_label, train_subject, train_data)
+alltest <- cbind(test_label, test_subject, test_data)
+finaldataset <- rbind(alltrain, alltest)
+
+dim(alltrain)
+dim(alltest)
+dim(finaldataset)
+
+View(alltrain)
+View(alltest)
+View(finaldataset)
+```
+
+# 4. Extracts only the measurements on the mean and standard deviation for each measurement.
+```{r}
+### locate columns that match "activityID","subjectID", -mean()" or "-std()" 
+mean_and_std <- grep("activityID|subjectID|-mean\\(\\)|-std\\(\\)", colnames(finaldataset))
+
+## subset the requested measurement data
+measurementdata<- finaldataset[,mean_and_std]
+dim(measurementdata)
+View(measurementdata)
+```
+# 5. Uses descriptive activity names to name the activities in the data set
+```{r}
+### merge measurementdata and activities to get the activity names
+measurement_activityname<- merge(measurementdata, activities, by = "activityID", all.x = TRUE)
+
+### reorder the columns to activityID and activityType next to each other
+measurement_activityname<- setcolorder(measurement_activityname, append(setdiff(names(measurement_activityname), "activityType"), "activityType", after = 1)) 
+
+
+dim(measurement_activityname)
+View(measurement_activityname)
+```
+
+# 6. Appropriately labels the data set with descriptive variable names. 
+```{r}
+colnames(measurement_activityname) <- gsub("^t", "time", colnames(measurement_activityname))
+colnames(measurement_activityname) <- gsub("^f", "frequency", colnames(measurement_activityname))
+colnames(measurement_activityname) <- gsub("Acc", "Accelerometer", colnames(measurement_activityname))
+colnames(measurement_activityname) <- gsub("Gyro", "Gyroscope", colnames(measurement_activityname))
+colnames(measurement_activityname) <- gsub("Mag", "Magnitude", colnames(measurement_activityname))
+colnames(measurement_activityname) <- gsub("BodyBody", "Body", colnames(measurement_activityname))
+View(measurement_activityname)
+```
+# 7.From the data set last step, creates a second, independent tidy data set with the average of each variable for each activity and each subject.
+```{r}
+tidy_data <- measurement_activityname  %>%
+  group_by(subjectID, activityType) %>%
+  summarize_all(mean)
+
+View(tidy_data)
+
+# save the result to a file
+write.table(tidy_data, "tidy_data.txt", row.names = FALSE)
+
+```
+
